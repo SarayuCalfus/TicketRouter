@@ -23,6 +23,7 @@ except Exception:  # pragma: no cover - handled at runtime
     create_ticket = None
     SessionLocal = None
 
+from attachments import extract_attachment_content
 from prompts import (
     BATCH_PROCESSING_PROMPT,
     REPLY_GENERATION_PROMPT,
@@ -197,22 +198,32 @@ def _persist_ticket_to_database(ticket_text: str, validated_payload: dict[str, A
             db.close()
 
 
-def route_ticket(ticket_text: str) -> dict[str, Any]:
-    """Route a single support ticket through the OpenAI workflow and return validated JSON."""
-    if not ticket_text or not str(ticket_text).strip():
+def route_ticket(ticket_text: str, attachment: Any = None) -> dict[str, Any]:
+    """Route a single support ticket, optionally with an attachment, through the OpenAI workflow.
+
+    When an attachment is provided, its extracted text or AI-generated description (see
+    attachments.py) is appended to the ticket text before classification, so screenshots, log
+    files, and documents factor into the analysis. Only the originally typed ticket text is
+    persisted to history, keeping duplicate detection and history search unaffected by
+    attachment content.
+    """
+    stripped_ticket_text = str(ticket_text or "").strip()
+    attachment_summary = extract_attachment_content(attachment)
+    combined_text = f"{stripped_ticket_text}\n\n{attachment_summary}".strip() if attachment_summary else stripped_ticket_text
+
+    if not combined_text:
         return _fallback_ticket_result("")
 
-    stripped_ticket_text = ticket_text.strip()
-    prompt = TICKET_ROUTING_PROMPT.format(ticket_text=stripped_ticket_text)
+    prompt = TICKET_ROUTING_PROMPT.format(ticket_text=combined_text)
 
     try:
         raw_output = _call_openai(prompt)
         parsed_payload = _extract_json_payload(raw_output)
         validated_payload = _normalize_ticket_result(parsed_payload)
-        _persist_ticket_to_database(stripped_ticket_text, validated_payload)
+        _persist_ticket_to_database(stripped_ticket_text or combined_text, validated_payload)
         return validated_payload
     except (OpenAIError, ValueError, json.JSONDecodeError, TypeError):
-        return _fallback_ticket_result(ticket_text)
+        return _fallback_ticket_result(combined_text)
 
 
 def generate_weekly_insights(weekly_data: Any) -> dict[str, Any]:
@@ -259,16 +270,20 @@ def process_batch_tickets(ticket_batch: Sequence[str]) -> list[dict[str, Any]]:
     return [route_ticket(ticket) for ticket in normalized_batch]
 
 
-def generate_reply(ticket_context: str) -> dict[str, Any]:
-    """Generate a customer-facing support reply in structured JSON form."""
-    if not ticket_context or not str(ticket_context).strip():
+def generate_reply(ticket_context: str, attachment: Any = None) -> dict[str, Any]:
+    """Generate a customer-facing support reply, optionally informed by an attachment."""
+    stripped_context = str(ticket_context or "").strip()
+    attachment_summary = extract_attachment_content(attachment)
+    combined_context = f"{stripped_context}\n\n{attachment_summary}".strip() if attachment_summary else stripped_context
+
+    if not combined_context:
         return {
             "auto_reply": "Thank you for contacting support. A specialist will review your issue shortly.",
             "tone": "Professional",
             "length": "Medium",
         }
 
-    prompt = REPLY_GENERATION_PROMPT.format(ticket_context=ticket_context.strip())
+    prompt = REPLY_GENERATION_PROMPT.format(ticket_context=combined_context)
 
     try:
         raw_output = _call_openai(prompt)

@@ -335,28 +335,35 @@ def main() -> None:
     )
     st.session_state.ticket_text = ticket_text
 
+    ticket_attachment = st.file_uploader(
+        "Attach a file (optional)",
+        type=["txt", "pdf", "docx", "png", "jpg", "jpeg"],
+        key="ticket_attachment",
+        help="TXT, PDF, and DOCX are read for text. Screenshots (PNG/JPG/JPEG) get an AI-generated description.",
+    )
+
     route_col, reply_col = st.columns([1, 1])
     with route_col:
         if st.button("Route Ticket", use_container_width=True):
-            if not ticket_text.strip():
-                st.warning("Please enter a support ticket before routing.")
+            if not ticket_text.strip() and ticket_attachment is None:
+                st.warning("Please enter a support ticket or attach a file before routing.")
             else:
                 with st.spinner("Analyzing ticket with AI..."):
                     history_before_routing = _load_history_for_duplicate_check()
                     st.session_state.duplicate_matches = find_similar_tickets(ticket_text, history_before_routing)
 
-                    ai_result = route_ticket(ticket_text)
+                    ai_result = route_ticket(ticket_text, attachment=ticket_attachment)
                     validated_result = validate_ticket_result(ai_result)
                 _bind_ticket_result(validated_result)
                 st.session_state.last_action = "Ticket routed"
                 st.success("Ticket routing completed.")
     with reply_col:
         if st.button("Generate Reply", use_container_width=True):
-            if not ticket_text.strip():
-                st.warning("Please enter a support ticket before generating a reply.")
+            if not ticket_text.strip() and ticket_attachment is None:
+                st.warning("Please enter a support ticket or attach a file before generating a reply.")
             else:
                 with st.spinner("Generating suggested reply..."):
-                    reply_result = generate_reply(ticket_text)
+                    reply_result = generate_reply(ticket_text, attachment=ticket_attachment)
                 st.session_state.reply_result = reply_result
                 st.success("Suggested reply generated.")
 
