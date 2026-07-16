@@ -18,6 +18,7 @@ The application reduces manual effort, improves routing consistency, and streaml
 * Suggested customer reply
 * Confidence score and reasoning
 * Batch ticket processing with CSV upload
+* Adding an attachment instead of typing the ticket
 * Ticket history and analytics dashboard
 * Export processed results to CSV
 
@@ -36,16 +37,34 @@ The application reduces manual effort, improves routing consistency, and streaml
 
 ## Project Structure
 
-text
-AutoRoute/
-├── app.py
-├── router.py
-├── prompts.py
-├── validator.py
-├── database.py
+TicketRouter/
+├── assets/
+├── data/
+│   ├── sample_tickets.csv
+│   ├── ticket_export.csv
+│   └── ticket_history.csv
+├── database/
+│   ├── __init__.py
+│   ├── crud.py
+│   ├── db.py
+│   └── models.py
+├── pages/
+│   ├── 1_Route_ticket.py
+│   ├── 2_Analytics.py
+│   └── 3_History.py
+├── .gitignore
+├── AI_guidelines.md
 ├── analytics.py
+├── app.py
+├── attachments.py
+├── csv_handler.py
+├── duplicate_detector.py
+├── prompts.py
+├── README.md
 ├── requirements.txt
-└── README.md
+├── router.py
+├── ui.py
+└── validator.py
 
 
 ## Sample Output
@@ -66,7 +85,7 @@ json
 The application follows the workflow below:
 
 1. **Input Ticket**
-   - The user enters a support ticket manually or uploads a CSV file containing multiple tickets.
+   - The user enters a support ticket manually, add an attachment or uploads a CSV file containing multiple tickets.
 
 2. **AI Analysis**
    - The ticket is sent to the AI model, which analyzes the content and identifies:
