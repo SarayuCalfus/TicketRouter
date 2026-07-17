@@ -115,16 +115,26 @@ def _render_result_panel(result: dict) -> None:
     with status_col:
         render_status_chip(status, tone=status_tone)
 
-    metric_cols = st.columns(5)
+    # Sentiment is intentionally None when the ticket was routed with an attachment - sentiment
+    # analysis is skipped in that case, so the card is omitted entirely rather than shown blank.
+    sentiment_value = result.get("sentiment")
+    show_sentiment = sentiment_value is not None
+
+    metric_cols = st.columns(5 if show_sentiment else 4)
     with metric_cols[0]:
         render_metric_card("Category", result.get("category", "General Inquiry"))
     with metric_cols[1]:
         render_priority_metric_card(result.get("priority", "Medium"))
     with metric_cols[2]:
         render_metric_card("Assigned Team", result.get("assigned_team", "Customer Success"))
-    with metric_cols[3]:
-        render_metric_card("Sentiment", result.get("sentiment", "Neutral"))
-    with metric_cols[4]:
+
+    next_col = 3
+    if show_sentiment:
+        with metric_cols[next_col]:
+            render_metric_card("Sentiment", sentiment_value)
+        next_col += 1
+
+    with metric_cols[next_col]:
         render_metric_card("Confidence", result.get("confidence", "Low"))
 
     st.markdown("---")

@@ -61,14 +61,24 @@ def _ensure_object(payload: Any) -> dict[str, Any]:
 
 
 def normalize_ticket_result(payload: Any) -> dict[str, Any]:
-    """Validate and normalize a single AI ticket-routing response into a stable schema."""
+    """Validate and normalize a single AI ticket-routing response into a stable schema.
+
+    A sentiment of None is preserved as-is rather than defaulted: it signals that sentiment
+    analysis was intentionally skipped (e.g. the ticket had an attachment), not that the value
+    is missing or malformed.
+    """
     source = _ensure_object(payload)
+
+    raw_sentiment = source.get("sentiment")
+    normalized_sentiment = (
+        None if raw_sentiment is None else _validate_enum_field(raw_sentiment, VALID_SENTIMENTS, "Neutral")
+    )
 
     normalized_payload = {
         "category": _validate_string_field(source.get("category"), "General Inquiry"),
         "priority": _validate_enum_field(source.get("priority"), VALID_PRIORITIES, "Medium"),
         "assigned_team": _validate_string_field(source.get("assigned_team"), "Customer Success"),
-        "sentiment": _validate_enum_field(source.get("sentiment"), VALID_SENTIMENTS, "Neutral"),
+        "sentiment": normalized_sentiment,
         "confidence": _validate_enum_field(source.get("confidence"), VALID_CONFIDENCE, "Low"),
         "needs_human_review": _validate_bool_field(source.get("needs_human_review"), False),
         "summary": _validate_string_field(source.get("summary"), "Ticket analyzed successfully."),

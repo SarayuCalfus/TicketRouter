@@ -232,6 +232,19 @@ def apply_ui_theme() -> None:
             color: var(--blue-700);
             margin-top: 0.35rem;
             line-height: 1.15;
+            min-height: 4.4rem;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Reserves the same vertical space as .metric-card-value for non-text content
+           (e.g. the priority badge pill), so every metric card ends up the same height
+           regardless of whether its value wraps to one line or two. */
+        .metric-card-value-slot {
+            min-height: 4.4rem;
+            display: flex;
+            align-items: center;
+            margin-top: 0.35rem;
         }
 
         .metric-card-help {
@@ -942,7 +955,9 @@ def render_priority_metric_card(priority: str) -> None:
         f"""
         <div class="metric-card">
             <div class="metric-card-label">Priority</div>
-            <div class="priority-badge" style="background: {background}; color: {color};">{priority}</div>
+            <div class="metric-card-value-slot">
+                <span class="priority-badge" style="background: {background}; color: {color};">{priority}</span>
+            </div>
         </div>
         """
     )

@@ -93,13 +93,18 @@ def _extract_json_payload(raw_text: str) -> Any:
     return json.loads(cleaned)
 
 
-def _normalize_ticket_result(payload: Any) -> dict[str, Any]:
+def _normalize_ticket_result(payload: Any, analyze_sentiment: bool = True) -> dict[str, Any]:
+    """Normalize a raw AI ticket-routing payload into the stable result schema.
+
+    When `analyze_sentiment` is False (a support attachment was provided), sentiment is set to
+    None rather than derived from the AI's response - the app intentionally skips sentiment
+    analysis for attachment-based tickets, so no sentiment value should ever surface downstream.
+    """
     ticket_payload = payload if isinstance(payload, dict) else {}
 
     category = str(ticket_payload.get("category") or "General Inquiry")
     priority = str(ticket_payload.get("priority") or "Medium")
     assigned_team = str(ticket_payload.get("assigned_team") or "Customer Success")
-    sentiment = str(ticket_payload.get("sentiment") or "Neutral")
     confidence = str(ticket_payload.get("confidence") or "Low")
     needs_human_review = bool(ticket_payload.get("needs_human_review", False))
     summary = str(ticket_payload.get("summary") or "Ticket analyzed successfully.")
@@ -112,11 +117,16 @@ def _normalize_ticket_result(payload: Any) -> dict[str, Any]:
 
     normalized_priority = priority if priority in {"Low", "Medium", "High", "Urgent"} else "Medium"
     normalized_confidence = confidence if confidence in {"High", "Medium", "Low"} else "Low"
-    normalized_sentiment = (
-        sentiment
-        if sentiment in {"Positive", "Neutral", "Negative", "Frustrated"}
-        else "Neutral"
-    )
+
+    if analyze_sentiment:
+        sentiment = str(ticket_payload.get("sentiment") or "Neutral")
+        normalized_sentiment = (
+            sentiment
+            if sentiment in {"Positive", "Neutral", "Negative", "Frustrated"}
+            else "Neutral"
+        )
+    else:
+        normalized_sentiment = None
 
     return {
         "category": category,
@@ -162,12 +172,12 @@ def _ensure_string_list(value: Any) -> list[str]:
     return []
 
 
-def _fallback_ticket_result(ticket_text: str) -> dict[str, Any]:
+def _fallback_ticket_result(ticket_text: str, attachment_present: bool = False) -> dict[str, Any]:
     return {
         "category": "General Inquiry",
         "priority": "Medium",
         "assigned_team": "Customer Success",
-        "sentiment": "Neutral",
+        "sentiment": None if attachment_present else "Neutral",
         "confidence": "Low",
         "needs_human_review": True,
         "summary": "The ticket could not be confidently classified automatically.",
@@ -208,6 +218,7 @@ def route_ticket(ticket_text: str, attachment: Any = None) -> dict[str, Any]:
     attachment content.
     """
     stripped_ticket_text = str(ticket_text or "").strip()
+    attachment_present = attachment is not None
     attachment_summary = extract_attachment_content(attachment)
     combined_text = f"{stripped_ticket_text}\n\n{attachment_summary}".strip() if attachment_summary else stripped_ticket_text
 
@@ -219,11 +230,11 @@ def route_ticket(ticket_text: str, attachment: Any = None) -> dict[str, Any]:
     try:
         raw_output = _call_openai(prompt)
         parsed_payload = _extract_json_payload(raw_output)
-        validated_payload = _normalize_ticket_result(parsed_payload)
+        validated_payload = _normalize_ticket_result(parsed_payload, analyze_sentiment=not attachment_present)
         _persist_ticket_to_database(stripped_ticket_text or combined_text, validated_payload)
         return validated_payload
     except (OpenAIError, ValueError, json.JSONDecodeError, TypeError):
-        return _fallback_ticket_result(combined_text)
+        return _fallback_ticket_result(combined_text, attachment_present=attachment_present)
 
 
 def generate_weekly_insights(weekly_data: Any) -> dict[str, Any]:
